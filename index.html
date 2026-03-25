@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>My Social Calendar</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --font: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+
+    /* Claude-inspired palette */
+    --bg: #2d2d2d;           /* slate grey page background */
+    --surface: #383838;      /* slightly lighter for cards/panels */
+    --surface-2: #404040;    /* hover states, inputs */
+    --border: rgba(255,255,255,0.1);
+    --border-strong: rgba(255,255,255,0.2);
+
+    /* Cream text — Claude's warm off-white */
+    --text: #f5f0e8;
+    --text-secondary: #c4bfb5;
+    --text-tertiary: #8a857c;
+
+    --radius: 10px; --radius-sm: 6px;
+
+    /* Status colors — softened for dark background */
+    --free-bg: #1a3d2e;   --free-text: #6fcfa0;   --free-border: #2d6647;
+    --busy-bg: #3d1a1a;   --busy-text: #f08080;   --busy-border: #6b3030;
+    --maybe-bg: #3d3015;  --maybe-text: #e0b060;  --maybe-border: #6b5525;
+    --travel-bg: #1a2a3d; --travel-text: #6aabf0; --travel-border: #2d4a6b;
+  }
+  html, body { width:100%; min-height:100vh; overflow-x:hidden; }
+  body { font-family:var(--font); background:var(--bg); color:var(--text); -webkit-font-smoothing:antialiased; -webkit-text-size-adjust:100%; }
+  .app-shell { width:100%; max-width:720px; margin:0 auto; padding:1.25rem 1rem 5rem; }
+
+  /* Landing */
+  #landingScreen { width:100%; min-height:100vh; display:flex; align-items:center; justify-content:center; padding:2rem 1rem; }
+  .landing-card { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:2rem 1.25rem; width:100%; max-width:420px; text-align:center; box-shadow:0 8px 40px rgba(0,0,0,.4); }
+
+  .landing-title { font-size:20px; font-weight:600; letter-spacing:-0.3px; margin-bottom:6px; }
+  .landing-subtitle { font-size:13px; color:var(--text-tertiary); margin-bottom:1.5rem; line-height:1.55; }
+  .code-input { width:100%; font-family:'Courier New',monospace; font-size:16px; font-weight:600; padding:14px 12px; border-radius:var(--radius); border:1.5px solid var(--border); background:var(--surface-2); color:var(--text); outline:none; text-align:center; letter-spacing:.3px; margin-bottom:10px; -webkit-appearance:none; }
+  .code-input:focus { border-color:var(--border-strong); }
+  .code-input::placeholder { font-family:var(--font); font-weight:400; font-size:14px; letter-spacing:0; color:var(--text-tertiary); }
+  .landing-btn { width:100%; padding:14px; font-family:var(--font); font-size:16px; font-weight:600; border:none; border-radius:var(--radius); background:var(--text); color:#2d2d2d; cursor:pointer; margin-bottom:12px; -webkit-tap-highlight-color:transparent; }
+  .landing-btn:active { opacity:.75; } .landing-btn:disabled { opacity:.45; }
+  .landing-divider { display:flex; align-items:center; gap:10px; margin:14px 0; }
+  .landing-divider::before,.landing-divider::after { content:''; flex:1; height:1px; background:var(--border); }
+  .landing-divider span { font-size:12px; color:var(--text-tertiary); }
+  .landing-new-btn { width:100%; padding:13px; font-family:var(--font); font-size:15px; font-weight:500; border:1.5px solid var(--border); border-radius:var(--radius); background:rgba(255,255,255,.05); color:var(--text-secondary); cursor:pointer; -webkit-tap-highlight-color:transparent; }
+  .landing-new-btn:active { background:var(--bg); }
+  .landing-error { font-size:13px; color:var(--busy-text); background:var(--busy-bg); border:1px solid var(--busy-border); border-radius:var(--radius-sm); padding:9px 12px; margin-top:10px; display:none; }
+
+  /* Calendar */
+  #calendarApp { display:none; width:100%; }
+  .app-header { margin-bottom:1.25rem; }
+  .app-title { font-size:22px; font-weight:600; letter-spacing:-0.4px; margin-bottom:2px; }
+  .app-subtitle { font-size:12px; color:var(--text-tertiary); }
+  .top-bar { display:flex; flex-direction:column; gap:10px; margin-bottom:1.25rem; padding:12px 14px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); }
+  .top-bar-row { display:flex; gap:8px; align-items:center; }
+  .name-input { flex:1; font-size:16px; font-family:var(--font); border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px 12px; background:var(--surface-2); color:var(--text); outline:none; -webkit-appearance:none; }
+  .name-input:focus { border-color:var(--border-strong); }
+  .btn { font-family:var(--font); cursor:pointer; font-size:14px; font-weight:500; border-radius:var(--radius-sm); padding:10px 16px; border:none; white-space:nowrap; -webkit-tap-highlight-color:transparent; }
+  .btn-dark { background:var(--text); color:#2d2d2d; } .btn-dark:active { opacity:.8; }
+  .btn-light { background:var(--surface-2); color:var(--text); border:1px solid var(--border); } .btn-light:active { background:var(--border); }
+  .btn:disabled { opacity:.45; cursor:not-allowed; }
+  .btn-save { flex:1; text-align:center; } .btn-share { flex-shrink:0; }
+  .saved-flash { font-size:12px; color:var(--free-text); font-weight:500; opacity:0; transition:opacity .3s; text-align:center; } .saved-flash.show { opacity:1; }
+  .view-banner { display:none; flex-direction:column; gap:8px; background:var(--travel-bg); border:1px solid var(--travel-border); border-radius:var(--radius); padding:10px 14px; font-size:13px; color:var(--travel-text); margin-bottom:1.25rem; }
+  .view-banner-actions { display:flex; }
+
+  /* Cal nav */
+  .cal-nav-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+  .cal-nav { display:flex; align-items:center; gap:8px; }
+  .nav-btn { background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius-sm); padding:8px 16px; cursor:pointer; font-size:18px; color:var(--text); min-width:44px; min-height:44px; display:flex; align-items:center; justify-content:center; -webkit-tap-highlight-color:transparent; }
+  .nav-btn:active { background:var(--border); }
+  .month-label { font-size:17px; font-weight:600; letter-spacing:-0.2px; text-align:center; }
+  .today-btn { background:none; border:1px solid var(--border); border-radius:var(--radius-sm); padding:6px 11px; font-size:11px; font-weight:600; font-family:var(--font); color:var(--text-secondary); cursor:pointer; -webkit-tap-highlight-color:transparent; white-space:nowrap; }
+  .today-btn:active { background:var(--border); }
+  .undo-btn { background:none; border:1px solid var(--border); border-radius:var(--radius-sm); padding:6px 11px; font-size:11px; font-weight:600; font-family:var(--font); color:var(--text-secondary); cursor:pointer; -webkit-tap-highlight-color:transparent; white-space:nowrap; transition:opacity .15s; }
+  .undo-btn:active { background:var(--border); } .undo-btn:disabled { opacity:.3; cursor:not-allowed; }
+  .cal-actions { display:flex; align-items:center; gap:6px; }
+  .legend { display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-start; margin-bottom:10px; }
+  .legend-item { display:flex; align-items:center; gap:4px; font-size:11px; color:var(--text-secondary); }
+  .legend-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .dot-free{background:#1d9e75}.dot-busy{background:#e24b4a}.dot-maybe{background:#ef9f27}.dot-travel{background:#378add}
+
+  /* Grid */
+  .weekdays { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; margin-bottom:3px; }
+  .weekday { text-align:center; font-size:9px; color:var(--text-tertiary); padding:3px 0; font-weight:600; letter-spacing:.04em; text-transform:uppercase; }
+  .days-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
+  .day-cell { aspect-ratio:1; border-radius:5px; border:1px solid var(--border); display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; font-size:13px; font-weight:500; user-select:none; background:var(--surface-2); -webkit-tap-highlight-color:transparent; }
+  .day-cell:active { opacity:.7; }
+  .day-cell.empty { border:none; background:transparent; cursor:default; pointer-events:none; }
+  .day-cell.today { outline:2px solid var(--text); outline-offset:-2px; }
+  .status-free{background:var(--free-bg);color:var(--free-text);border-color:var(--free-border)}
+  .status-busy{background:var(--busy-bg);color:var(--busy-text);border-color:var(--busy-border)}
+  .status-maybe{background:var(--maybe-bg);color:var(--maybe-text);border-color:var(--maybe-border)}
+  .status-travel{background:var(--travel-bg);color:var(--travel-text);border-color:var(--travel-border)}
+  .status-none{background:var(--surface-2);color:var(--text-secondary)}
+  .day-label{display:block;line-height:1}
+  .day-note{font-size:7px;font-weight:400;margin-top:2px;opacity:.7;max-width:90%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .month-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:10px}
+  .summary-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 4px;text-align:center}
+  .summary-num{font-size:18px;font-weight:600}
+  .summary-lbl{font-size:9px;color:var(--text-tertiary);margin-top:1px;text-transform:uppercase;letter-spacing:.04em}
+  .s-free{color:#1d9e75}.s-busy{color:#e24b4a}.s-maybe{color:#ba7517}.s-travel{color:#378add}
+
+  /* Tabs */
+  .tabs-wrap{margin-top:1.25rem}
+  .tab-row{display:flex;border-bottom:1px solid var(--border);margin-bottom:1rem}
+  .tab{flex:1;padding:10px 6px;font-size:12px;font-family:var(--font);cursor:pointer;color:var(--text-tertiary);border:none;background:none;border-bottom:2px solid transparent;margin-bottom:-1px;font-weight:500;text-align:center;-webkit-tap-highlight-color:transparent;}
+  .tab.active{color:var(--text);border-bottom-color:var(--text)}
+  .tab-panel{display:none} .tab-panel.active{display:block}
+
+  /* Edit form */
+  .form-row{display:flex;flex-direction:column;gap:10px;margin-bottom:12px}
+  .form-group{display:flex;flex-direction:column;gap:4px;width:100%}
+  .form-label{font-size:11px;color:var(--text-tertiary);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+  .form-group input[type=date],.form-group input[type=text]{width:100%;font-size:16px;font-family:var(--font);padding:11px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface-2);color:var(--text);outline:none;-webkit-appearance:none;color-scheme:dark;}
+  .form-group input:focus{border-color:var(--border-strong)}
+  .status-btns{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px}
+  .status-btn{padding:11px 8px;border-radius:var(--radius-sm);border:1.5px solid transparent;font-size:13px;font-family:var(--font);cursor:pointer;font-weight:600;text-align:center;-webkit-tap-highlight-color:transparent;}
+  .status-btn:active{opacity:.75} .status-btn.active{outline:2.5px solid var(--text);outline-offset:1px}
+  .btn-clear{grid-column:1 / -1}
+  .btn-free{background:var(--free-bg);color:var(--free-text);border-color:var(--free-border)}
+  .btn-busy{background:var(--busy-bg);color:var(--busy-text);border-color:var(--busy-border)}
+  .btn-maybe{background:var(--maybe-bg);color:var(--maybe-text);border-color:var(--maybe-border)}
+  .btn-travel{background:var(--travel-bg);color:var(--travel-text);border-color:var(--travel-border)}
+  .btn-clear{background:rgba(255,255,255,.06);color:var(--text-secondary);border-color:var(--border)}
+  .apply-btn{width:100%;padding:13px;font-family:var(--font);font-size:15px;font-weight:500;border:none;border-radius:var(--radius);background:var(--text);color:#2d2d2d;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  .apply-btn:active{opacity:.8}
+
+  /* Share tab */
+  .share-section{margin-bottom:1.5rem} .share-section+.share-section{border-top:1px solid var(--border);padding-top:1.5rem}
+  .share-label{font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px}
+  .share-sublabel{font-size:13px;color:var(--text-tertiary);margin-bottom:12px;line-height:1.55}
+  .code-card{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:10px}
+  .code-card-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-tertiary);margin-bottom:8px}
+  .code-value{font-family:'Courier New',monospace;font-size:15px;font-weight:700;color:var(--text);letter-spacing:.3px;margin-bottom:12px;word-break:break-all;line-height:1.5}
+  .code-value.empty{font-size:13px;font-weight:400;color:var(--text-tertiary);font-family:var(--font)}
+  .code-card .btn{width:100%;padding:12px;font-size:14px;text-align:center}
+
+  /* Blocks */
+  .events-list{display:flex;flex-direction:column;gap:6px}
+  .event-item{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface-2);font-size:13px;flex-wrap:wrap;gap:6px}
+  .event-badge{font-size:11px;padding:3px 9px;border-radius:20px;font-weight:600}
+  .event-remove{background:none;border:none;cursor:pointer;color:var(--text-tertiary);font-size:18px;padding:4px 6px;line-height:1;min-width:32px;min-height:32px}
+  .event-remove:active{color:#e24b4a}
+  .empty-state{font-size:13px;color:var(--text-tertiary);padding:8px 0}
+
+  .spinner{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:6px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .toast{position:fixed;bottom:20px;left:1rem;right:1rem;background:var(--text);color:#2d2d2d;padding:12px 20px;border-radius:12px;font-size:14px;font-family:var(--font);opacity:0;transition:opacity .2s;pointer-events:none;z-index:999;text-align:center}
+  .toast.show{opacity:1}
+
+  /* Desktop */
+  @media(min-width:600px){
+    .app-shell{padding:2.5rem 1.5rem 5rem}
+    .top-bar{flex-direction:row;align-items:center;flex-wrap:wrap}
+    .top-bar-row{flex:1}
+    .name-input{font-size:14px;padding:8px 12px;background:var(--surface-2)}
+    .btn{font-size:13px;padding:8px 16px}
+    .btn-save,.btn-share{flex:none;width:auto}
+    .view-banner{flex-direction:row;align-items:center;justify-content:space-between}
+    .month-label{font-size:20px;min-width:170px}
+    .weekday{font-size:10px}
+    .day-cell{font-size:13px}
+    .day-note{font-size:8px}
+    .summary-num{font-size:22px}
+    .summary-lbl{font-size:10px}
+    .tab{flex:none;padding:9px 18px;font-size:13px}
+    .form-row{flex-direction:row;align-items:flex-end;flex-wrap:wrap}
+    .form-group{width:auto}
+    .form-group input[type=date],.form-group input[type=text]{font-size:13px;padding:8px 10px;width:auto;background:var(--surface-2);color-scheme:dark}
+    .form-group input[type=text]{min-width:160px}
+    .status-btns{display:flex;gap:6px}
+    .status-btn{padding:6px 13px;font-size:12px}
+    .btn-clear{grid-column:auto}
+    .apply-btn{width:auto;padding:9px 20px;font-size:13px}
+    .code-value{font-size:18px}
+    .code-card .btn{width:auto}
+    .toast{left:50%;right:auto;transform:translateX(-50%);border-radius:24px;white-space:nowrap;font-size:13px;padding:9px 20px;color:#2d2d2d}
+    .landing-card{padding:2.5rem 2rem}
+  }
+</style>
+</head>
+<body>
+
+<!-- Landing screen -->
+<div id="landingScreen">
+  <div class="landing-card">
+    <div class="landing-title">Social Calendar</div>
+    <div class="landing-subtitle">Enter a code to view someone's availability, or create your own.</div>
+    <input class="code-input" id="landingCodeInput" placeholder="Enter code  e.g. restine-x7k2" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+    <button class="landing-btn" id="landingLoadBtn" onclick="landingLoad()">View calendar</button>
+    <div class="landing-error" id="landingError">Code not found — double check and try again</div>
+    <div class="landing-divider"><span>or</span></div>
+    <button class="landing-new-btn" onclick="startNewCalendar()">Create my own calendar</button>
+  </div>
+</div>
+
+<!-- Calendar app -->
+<div id="calendarApp">
+<div class="app-shell">
+
+  <div class="app-header">
+    <div class="app-title">Social Calendar</div>
+    <div class="app-subtitle">Share your availability with friends</div>
+  </div>
+
+  <div class="view-banner" id="viewBanner">
+    <span>Viewing <strong id="viewOwnerName"></strong>'s calendar — read only</span>
+    <div class="view-banner-actions">
+      <button class="btn btn-light" style="font-size:12px;padding:7px 14px" onclick="goToLanding()">&#8592; Back</button>
+    </div>
+  </div>
+
+  <div class="top-bar" id="topBar" style="display:none">
+    <input class="name-input" id="ownerName" placeholder="Your name (e.g. Restine)">
+    <div class="top-bar-row">
+      <button class="btn btn-dark btn-save" id="saveBtn" onclick="saveCalendar()">Save &amp; update</button>
+      <button class="btn btn-light btn-share" onclick="switchTab('share')">Share ↗</button>
+    </div>
+    <span class="saved-flash" id="savedFlash">Saved ✓</span>
+  </div>
+
+  <div class="cal-nav-row">
+    <div class="cal-nav">
+      <button class="nav-btn" onclick="changeMonth(-1)">&#8592;</button>
+      <span class="month-label" id="monthLabel"></span>
+      <button class="nav-btn" onclick="changeMonth(1)">&#8594;</button>
+      <button class="today-btn" onclick="goToToday()">Today</button>
+    </div>
+    <div class="cal-actions">
+      <button class="undo-btn" id="undoBtn" onclick="undoLast()" disabled>&#8630; Undo</button>
+    </div>
+  </div>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot dot-free"></div>Free</div>
+    <div class="legend-item"><div class="legend-dot dot-maybe"></div>Maybe</div>
+    <div class="legend-item"><div class="legend-dot dot-busy"></div>Busy</div>
+    <div class="legend-item"><div class="legend-dot dot-travel"></div>Travel</div>
+  </div>
+
+  <div class="weekdays">
+    <div class="weekday">Su</div><div class="weekday">Mo</div><div class="weekday">Tu</div>
+    <div class="weekday">We</div><div class="weekday">Th</div><div class="weekday">Fr</div><div class="weekday">Sa</div>
+  </div>
+  <div class="days-grid" id="daysGrid"></div>
+  <div class="month-summary" id="monthSummary"></div>
+
+  <div class="tabs-wrap">
+    <div class="tab-row">
+      <button class="tab active" onclick="switchTab('edit')">Edit</button>
+      <button class="tab" onclick="switchTab('share')">Share &amp; restore</button>
+      <button class="tab" onclick="switchTab('blocks')">Blocks</button>
+    </div>
+
+    <div class="tab-panel active" id="tab-edit">
+      <div class="form-row">
+        <div class="form-group"><span class="form-label">From</span><input type="date" id="startDate"></div>
+        <div class="form-group"><span class="form-label">To</span><input type="date" id="endDate"></div>
+        <div class="form-group"><span class="form-label">Note (optional)</span><input type="text" id="noteInput" placeholder="e.g. California trip"></div>
+      </div>
+      <div class="status-btns">
+        <button class="status-btn btn-free active" onclick="setStatus('free')" id="btn-free">Free</button>
+        <button class="status-btn btn-maybe" onclick="setStatus('maybe')" id="btn-maybe">Maybe</button>
+        <button class="status-btn btn-busy" onclick="setStatus('busy')" id="btn-busy">Busy</button>
+        <button class="status-btn btn-travel" onclick="setStatus('travel')" id="btn-travel">Travel</button>
+        <button class="status-btn btn-clear" onclick="setStatus('none')" id="btn-none">Clear</button>
+      </div>
+      <button class="apply-btn" onclick="applyRange()">Apply to range</button>
+    </div>
+
+    <div class="tab-panel" id="tab-share">
+      <div class="share-section">
+        <div class="share-label">Your codes</div>
+        <div class="share-sublabel">Hit "Save &amp; update" to generate your codes. Send the share code to friends — keep the edit code private.</div>
+        <div class="code-card">
+          <div class="code-card-label">Share code — send to friends</div>
+          <div class="code-value empty" id="shareCodeDisplay">Save your calendar to generate</div>
+          <button class="btn btn-dark" onclick="copyCode('share')">Copy share code</button>
+        </div>
+        <div class="code-card">
+          <div class="code-card-label">Edit code — keep this private</div>
+          <div class="code-value empty" id="editCodeDisplay">Save your calendar to generate</div>
+          <button class="btn btn-light" onclick="copyCode('edit')">Copy edit code</button>
+        </div>
+        <p style="font-size:12px;color:var(--text-tertiary);line-height:1.6;margin-top:4px">Paste your edit code on the home screen anytime — on any device — to reload and update your calendar.</p>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab-blocks">
+      <div class="events-list" id="eventsList"></div>
+    </div>
+  </div>
+
+</div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  STEP 1: Paste your JSONBin Master Key here
+//  Get it from jsonbin.io → API Keys → X-Master-Key
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const JSONBIN_KEY = 'P$2a$10$yhBZzW.Tjh62JtFMK39A/.XGGoq.Vw3VsA1dQu/jp7IFRmVMeU/6O';
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  STEP 2: Paste your Lookup Table Bin ID here
+//  Create a new bin on jsonbin.io with content: {"lookup":{}}
+//  Then paste the bin ID below
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const LOOKUP_BIN_ID = '69c4546aaa77b81da91ca8b2';
+
+const JBASE = 'https://api.jsonbin.io/v3';
+const HEADERS = { 'Content-Type':'application/json', 'X-Master-Key': JSONBIN_KEY };
+
+// ── JSONBin helpers ──────────────────────────────────
+async function jbGet(binId){
+  const r = await fetch(`${JBASE}/b/${binId}/latest`, { headers: HEADERS });
+  if(!r.ok) throw new Error('not found');
+  const j = await r.json();
+  return j.record;
+}
+
+async function jbCreate(data){
+  const r = await fetch(`${JBASE}/b`, {
+    method:'POST', headers:{...HEADERS,'X-Bin-Private':'false'},
+    body: JSON.stringify(data)
+  });
+  const j = await r.json();
+  return j.metadata.id;
+}
+
+async function jbUpdate(binId, data){
+  await fetch(`${JBASE}/b/${binId}`, {
+    method:'PUT', headers: HEADERS,
+    body: JSON.stringify(data)
+  });
+}
+
+// ── Lookup table ─────────────────────────────────────
+async function getLookup(){
+  try{ return await jbGet(LOOKUP_BIN_ID); }
+  catch(e){ return {}; }
+}
+
+async function setLookup(shortCode, binId){
+  const table = await getLookup();
+  table[shortCode] = binId;
+  await jbUpdate(LOOKUP_BIN_ID, table);
+}
+
+// ── Token generator ──────────────────────────────────
+function genToken(n){ return Array.from(crypto.getRandomValues(new Uint8Array(n))).map(b=>'abcdefghijklmnopqrstuvwxyz0123456789'[b%36]).join(''); }
+
+// ── Save ─────────────────────────────────────────────
+async function apiSave(name, data, binId, editToken, shortCode){
+  const clean = name.toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,10);
+  const sc = shortCode || (clean + '-' + genToken(4));
+  const et = editToken || genToken(6);
+  const payload = { name, shortCode:sc, data, editToken:et, updatedAt:new Date().toISOString() };
+  let bid = binId;
+  if(bid){ await jbUpdate(bid, payload); }
+  else { bid = await jbCreate(payload); }
+  await setLookup(sc, bid);
+  return { binId:bid, shortCode:sc, editToken:et };
+}
+
+// ── Load ─────────────────────────────────────────────
+async function apiLoad(shortCode, editToken){
+  const table = await getLookup();
+  const bid = table[shortCode];
+  if(!bid) return { success:false };
+  const record = await jbGet(bid);
+  const isOwner = editToken && editToken === record.editToken;
+  return { success:true, name:record.name, data:record.data, isOwner, binId:bid, shortCode, editToken: isOwner ? record.editToken : null };
+}
+
+// ── App state ─────────────────────────────────────────
+const today = new Date();
+let currentYear=today.getFullYear(), currentMonth=today.getMonth();
+let selectedStatus='free', dayData={}, isViewMode=false;
+let myBinId=null, myShortCode=null, myEditToken=null;
+const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const undoStack=[];
+const MAX_UNDO=20;
+
+// ── Utils ─────────────────────────────────────────────
+function showToast(m,d=2400){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),d);}
+function fmtKey(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+function flashSaved(){const el=document.getElementById('savedFlash');el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2800);}
+function setLoading(id,on,label){const b=document.getElementById(id);b.disabled=on;b.innerHTML=on?`<span class="spinner"></span>${label}`:label;}
+
+// ── Undo ─────────────────────────────────────────────
+function pushUndo(){undoStack.push(JSON.stringify(dayData));if(undoStack.length>MAX_UNDO)undoStack.shift();document.getElementById('undoBtn').disabled=false;}
+function undoLast(){if(!undoStack.length)return;dayData=JSON.parse(undoStack.pop());document.getElementById('undoBtn').disabled=undoStack.length===0;renderCalendar();renderEvents();showToast('Undone — last change reverted');}
+
+// ── Screen nav ────────────────────────────────────────
+function showLanding(){document.getElementById('landingScreen').style.display='flex';document.getElementById('calendarApp').style.display='none';}
+function showCalendar(){document.getElementById('landingScreen').style.display='none';document.getElementById('calendarApp').style.display='block';}
+
+function goToLanding(){
+  isViewMode=false;dayData={};myBinId=null;myShortCode=null;myEditToken=null;
+  undoStack.length=0;document.getElementById('undoBtn').disabled=true;
+  document.querySelectorAll('.tab').forEach(t=>t.style.display='');
+  document.getElementById('tab-edit').style.display='';
+  document.getElementById('tab-share').style.display='';
+  showLanding();
+}
+
+function goToToday(){currentYear=today.getFullYear();currentMonth=today.getMonth();renderCalendar();showToast('Jumped to today');}
+
+function startNewCalendar(){
+  isViewMode=false;dayData={};
+  try{
+    const sd=localStorage.getItem('cal_data'),sn=localStorage.getItem('cal_name');
+    const sb=localStorage.getItem('cal_binId'),ss=localStorage.getItem('cal_shortCode'),se=localStorage.getItem('cal_editToken');
+    if(sd)dayData=JSON.parse(sd);
+    if(sn)document.getElementById('ownerName').value=sn;
+    if(sb)myBinId=sb;if(ss)myShortCode=ss;if(se)myEditToken=se;
+    updateCodeDisplay();
+  }catch(e){}
+  document.getElementById('topBar').style.display='flex';
+  document.getElementById('viewBanner').style.display='none';
+  switchTab('edit');showCalendar();renderCalendar();renderEvents();
+}
+
+// ── Landing load ──────────────────────────────────────
+async function landingLoad(){
+  const raw=document.getElementById('landingCodeInput').value.trim().toLowerCase();
+  if(!raw){document.getElementById('landingCodeInput').focus();return;}
+  const errEl=document.getElementById('landingError');errEl.style.display='none';
+  setLoading('landingLoadBtn',true,'Loading...');
+  let shortCode=raw,editToken=null;
+  const idx=raw.indexOf('-edit-');
+  if(idx>-1){shortCode=raw.substring(0,idx);editToken=raw.substring(idx+6);}
+  try{
+    const result=await apiLoad(shortCode,editToken);
+    setLoading('landingLoadBtn',false,'View calendar');
+    if(!result.success){errEl.style.display='block';return;}
+    dayData=result.data||{};
+    const name=result.name||'someone';
+    if(result.isOwner){
+      isViewMode=false;myBinId=result.binId;myShortCode=result.shortCode||shortCode;myEditToken=editToken||result.editToken;
+      document.getElementById('ownerName').value=name;
+      document.getElementById('topBar').style.display='flex';
+      document.getElementById('viewBanner').style.display='none';
+      updateCodeDisplay();persistLocal(name);switchTab('edit');
+      showToast('Your calendar loaded — ready to edit!');
+    } else {
+      isViewMode=true;
+      document.getElementById('viewOwnerName').textContent=name;
+      document.getElementById('viewBanner').style.display='flex';
+      document.getElementById('topBar').style.display='none';
+      document.getElementById('tab-edit').style.display='none';
+      document.getElementById('tab-share').style.display='none';
+      document.querySelectorAll('.tab').forEach((t,i)=>{if(i===0||i===1)t.style.display='none';});
+      switchTab('blocks');
+      showToast('Viewing '+name+"'s calendar");
+    }
+    showCalendar();renderCalendar();renderEvents();
+  }catch(e){setLoading('landingLoadBtn',false,'View calendar');errEl.style.display='block';console.error(e);}
+}
+
+document.getElementById('landingCodeInput').addEventListener('keydown',e=>{if(e.key==='Enter')landingLoad();});
+
+// ── Status & tabs ─────────────────────────────────────
+function setStatus(s){selectedStatus=s;['free','maybe','busy','travel','none'].forEach(x=>{const el=document.getElementById('btn-'+x);if(el)el.classList.toggle('active',x===s);});}
+function switchTab(name){const names=['edit','share','blocks'];document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',names[i]===name));document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.id==='tab-'+name));}
+
+// ── Apply range ───────────────────────────────────────
+function applyRange(){
+  if(isViewMode)return;
+  const s=document.getElementById('startDate').value,e=document.getElementById('endDate').value,note=document.getElementById('noteInput').value.trim();
+  if(!s){showToast('Pick a start date first');return;}
+  const start=new Date(s+'T12:00:00'),end=e?new Date(e+'T12:00:00'):new Date(s+'T12:00:00');
+  if(end<start){showToast('End date must be after start date');return;}
+  pushUndo();
+  let cur=new Date(start);
+  while(cur<=end){const k=fmtKey(cur);if(selectedStatus==='none')delete dayData[k];else dayData[k]={status:selectedStatus,note:note||''};cur.setDate(cur.getDate()+1);}
+  renderCalendar();renderEvents();document.getElementById('noteInput').value='';showToast('Range applied!');
+}
+
+function changeMonth(d){currentMonth+=d;if(currentMonth>11){currentMonth=0;currentYear++;}if(currentMonth<0){currentMonth=11;currentYear--;}renderCalendar();}
+
+// ── Render calendar ───────────────────────────────────
+function renderCalendar(){
+  document.getElementById('monthLabel').textContent=`${MONTHS[currentMonth]} ${currentYear}`;
+  const grid=document.getElementById('daysGrid');grid.innerHTML='';
+  const firstDay=new Date(currentYear,currentMonth,1).getDay(),dim=new Date(currentYear,currentMonth+1,0).getDate();
+  for(let i=0;i<firstDay;i++){const el=document.createElement('div');el.className='day-cell empty';grid.appendChild(el);}
+  let free=0,busy=0,maybe=0,travel=0;
+  for(let d=1;d<=dim;d++){
+    const k=`${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const info=dayData[k];const cell=document.createElement('div');cell.className='day-cell';
+    if(today.getFullYear()===currentYear&&today.getMonth()===currentMonth&&today.getDate()===d)cell.classList.add('today');
+    cell.classList.add(info?'status-'+info.status:'status-none');
+    if(info){if(info.status==='free')free++;else if(info.status==='busy')busy++;else if(info.status==='maybe')maybe++;else if(info.status==='travel')travel++;}
+    cell.innerHTML=`<span class="day-label">${d}</span>${info&&info.note?`<span class="day-note">${info.note}</span>`:''}`;
+    if(!isViewMode){cell.addEventListener('click',()=>{const sd=document.getElementById('startDate'),ed=document.getElementById('endDate');const dStr=`${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;if(!sd.value||(sd.value&&ed.value)){sd.value=dStr;ed.value='';}else{if(dStr>=sd.value)ed.value=dStr;else{ed.value=sd.value;sd.value=dStr;}}});}
+    grid.appendChild(cell);
+  }
+  document.getElementById('monthSummary').innerHTML=`
+    <div class="summary-card"><div class="summary-num s-free">${free}</div><div class="summary-lbl">Free</div></div>
+    <div class="summary-card"><div class="summary-num s-maybe">${maybe}</div><div class="summary-lbl">Maybe</div></div>
+    <div class="summary-card"><div class="summary-num s-busy">${busy}</div><div class="summary-lbl">Busy</div></div>
+    <div class="summary-card"><div class="summary-num s-travel">${travel}</div><div class="summary-lbl">Travel</div></div>`;
+}
+
+// ── Render blocks ─────────────────────────────────────
+function renderEvents(){
+  const list=document.getElementById('eventsList');if(!list)return;
+  const entries=Object.entries(dayData).sort(([a],[b])=>a.localeCompare(b));
+  const blocks=[];let cur=null;
+  for(const [k,v] of entries){if(cur&&cur.status===v.status&&cur.note===v.note){const prev=new Date(cur.endKey+'T12:00:00'),next=new Date(k+'T12:00:00');if((next-prev)/86400000===1){cur.endKey=k;continue;}}cur={startKey:k,endKey:k,status:v.status,note:v.note};blocks.push(cur);}
+  if(!blocks.length){list.innerHTML='<div class="empty-state">No blocks set yet.</div>';return;}
+  list.innerHTML=blocks.slice(0,20).map(b=>{
+    const s=new Date(b.startKey+'T12:00:00'),e=new Date(b.endKey+'T12:00:00');
+    const fmt=d=>d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    const range=b.startKey===b.endKey?fmt(s):`${fmt(s)} – ${fmt(e)}`;
+    const bc=`event-badge ${b.status==='free'?'btn-free':b.status==='busy'?'btn-busy':b.status==='travel'?'btn-travel':'btn-maybe'}`;
+    const rm=isViewMode?'':`<button class="event-remove" onclick="removeBlock('${b.startKey}','${b.endKey}')">&#215;</button>`;
+    return `<div class="event-item"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="${bc}">${b.status}</span><span style="font-weight:500">${range}</span>${b.note?`<span style="color:var(--text-secondary)">${b.note}</span>`:''}</div>${rm}</div>`;
+  }).join('');
+}
+
+function removeBlock(sk,ek){if(isViewMode)return;pushUndo();let cur=new Date(sk+'T12:00:00'),end=new Date(ek+'T12:00:00');while(cur<=end){delete dayData[fmtKey(cur)];cur.setDate(cur.getDate()+1);}renderCalendar();renderEvents();}
+
+// ── Code display ──────────────────────────────────────
+function updateCodeDisplay(){
+  if(myShortCode&&myEditToken){
+    const sd=document.getElementById('shareCodeDisplay'),ed=document.getElementById('editCodeDisplay');
+    sd.textContent=myShortCode;sd.classList.remove('empty');
+    ed.textContent=myShortCode+'-edit-'+myEditToken;ed.classList.remove('empty');
+  }
+}
+
+// ── Persist locally ───────────────────────────────────
+function persistLocal(name){
+  try{
+    localStorage.setItem('cal_binId',myBinId||'');
+    localStorage.setItem('cal_shortCode',myShortCode||'');
+    localStorage.setItem('cal_editToken',myEditToken||'');
+    localStorage.setItem('cal_name',name||'');
+    localStorage.setItem('cal_data',JSON.stringify(dayData));
+  }catch(e){}
+}
+
+// ── Save calendar ─────────────────────────────────────
+async function saveCalendar(){
+  const name=document.getElementById('ownerName').value.trim();
+  if(!name){showToast('Enter your name first');return;}
+  setLoading('saveBtn',true,'Saving...');
+  try{
+    const result=await apiSave(name,dayData,myBinId,myEditToken,myShortCode);
+    myBinId=result.binId;myShortCode=result.shortCode;myEditToken=result.editToken;
+    updateCodeDisplay();persistLocal(name);flashSaved();
+    showToast('Saved! Go to "Share & restore" for your codes.');
+  }catch(e){showToast('Save failed — check your API key in index.html');console.error(e);}
+  setLoading('saveBtn',false,'Save &amp; update');
+}
+
+// ── Copy codes ────────────────────────────────────────
+function copyCode(type){
+  if(!myShortCode){showToast('Save your calendar first!');return;}
+  const text=type==='share'?myShortCode:myShortCode+'-edit-'+myEditToken;
+  navigator.clipboard.writeText(text)
+    .then(()=>showToast(type==='share'?'Share code copied — send it to friends!':'Edit code copied — keep this private!'))
+    .catch(()=>showToast('Copy failed — select and copy manually'));
+}
+
+showLanding();
+</script>
+</body>
+</html>
