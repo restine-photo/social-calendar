@@ -100,7 +100,22 @@
   .day-cell { aspect-ratio:1; border-radius:5px; border:1px solid var(--border); display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; font-size:13px; font-weight:500; user-select:none; background:var(--surface-2); -webkit-tap-highlight-color:transparent; }
   .day-cell:active { opacity:.7; }
   .day-cell.empty { border:none; background:transparent; cursor:default; pointer-events:none; }
-  .day-cell.today { outline:2px solid var(--text); outline-offset:-2px; }
+  .day-cell.today { position:relative; }
+  .day-cell.today::after {
+    content:'';
+    position:absolute;
+    bottom:4px;
+    left:50%;
+    transform:translateX(-50%);
+    width:4px;
+    height:4px;
+    border-radius:50%;
+    background:var(--text);
+    opacity:.7;
+  }
+  .day-cell.selected-start { outline:2px solid #f5f0e8; outline-offset:-2px; z-index:1; }
+  .day-cell.in-range { outline:2px solid rgba(245,240,232,0.4); outline-offset:-2px; }
+  .day-cell.selected-end { outline:2px solid #f5f0e8; outline-offset:-2px; z-index:1; }
   .status-free{background:var(--free-bg);color:var(--free-text);border-color:var(--free-border)}
   .status-busy{background:var(--busy-bg);color:var(--busy-text);border-color:var(--busy-border)}
   .status-maybe{background:var(--maybe-bg);color:var(--maybe-text);border-color:var(--maybe-border)}
@@ -512,7 +527,7 @@ function applyRange(){
   pushUndo();
   let cur=new Date(start);
   while(cur<=end){const k=fmtKey(cur);if(selectedStatus==='none')delete dayData[k];else dayData[k]={status:selectedStatus,note:note||''};cur.setDate(cur.getDate()+1);}
-  renderCalendar();renderEvents();document.getElementById('noteInput').value='';showToast('Range applied!');
+  renderCalendar();renderEvents();document.getElementById('noteInput').value='';highlightSelection();showToast('Range applied!');
 }
 
 function changeMonth(d){currentMonth+=d;if(currentMonth>11){currentMonth=0;currentYear++;}if(currentMonth<0){currentMonth=11;currentYear--;}renderCalendar();}
@@ -531,7 +546,7 @@ function renderCalendar(){
     cell.classList.add(info?'status-'+info.status:'status-none');
     if(info){if(info.status==='free')free++;else if(info.status==='busy')busy++;else if(info.status==='maybe')maybe++;else if(info.status==='travel')travel++;}
     cell.innerHTML=`<span class="day-label">${d}</span>${info&&info.note?`<span class="day-note">${info.note}</span>`:''}`;
-    if(!isViewMode){cell.addEventListener('click',()=>{const sd=document.getElementById('startDate'),ed=document.getElementById('endDate');const dStr=`${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;if(!sd.value||(sd.value&&ed.value)){sd.value=dStr;ed.value='';}else{if(dStr>=sd.value)ed.value=dStr;else{ed.value=sd.value;sd.value=dStr;}}});}
+    if(!isViewMode){cell.addEventListener('click',()=>{const sd=document.getElementById('startDate'),ed=document.getElementById('endDate');const dStr=`${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;if(!sd.value||(sd.value&&ed.value)){sd.value=dStr;ed.value='';}else{if(dStr>=sd.value)ed.value=dStr;else{ed.value=sd.value;sd.value=dStr;}}highlightSelection();});}
     grid.appendChild(cell);
   }
   document.getElementById('monthSummary').innerHTML=`
@@ -539,6 +554,31 @@ function renderCalendar(){
     <div class="summary-card"><div class="summary-num s-maybe">${maybe}</div><div class="summary-lbl">Maybe</div></div>
     <div class="summary-card"><div class="summary-num s-busy">${busy}</div><div class="summary-lbl">Busy</div></div>
     <div class="summary-card"><div class="summary-num s-travel">${travel}</div><div class="summary-lbl">Travel</div></div>`;
+}
+
+// ── Highlight selected range on calendar ─────────────
+function highlightSelection(){
+  const sd = document.getElementById('startDate').value;
+  const ed = document.getElementById('endDate').value;
+  document.querySelectorAll('.day-cell').forEach(cell => {
+    cell.classList.remove('selected-start','selected-end','in-range');
+  });
+  if(!sd) return;
+  const start = new Date(sd+'T12:00:00');
+  const end   = ed ? new Date(ed+'T12:00:00') : null;
+  document.querySelectorAll('.day-cell:not(.empty)').forEach(cell => {
+    const label = cell.querySelector('.day-label');
+    if(!label) return;
+    const d = parseInt(label.textContent);
+    const cellDate = new Date(currentYear, currentMonth, d, 12);
+    if(end){
+      if(cellDate.toDateString() === start.toDateString()) cell.classList.add('selected-start');
+      else if(cellDate.toDateString() === end.toDateString()) cell.classList.add('selected-end');
+      else if(cellDate > start && cellDate < end) cell.classList.add('in-range');
+    } else {
+      if(cellDate.toDateString() === start.toDateString()) cell.classList.add('selected-start');
+    }
+  });
 }
 
 // ── Render blocks ─────────────────────────────────────
